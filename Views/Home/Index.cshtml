@@ -1,0 +1,31 @@
+﻿@model QuartzNetExample.Models.JobDetailsViewModel
+
+@{
+    ViewData["Title"] = "Job Status";
+}
+
+<h1>Job Status</h1>
+
+<table class="table">
+    <thead>
+        <tr>
+            <th scope="col">Job Name</th>
+            <th scope="col">Job Group</th>
+            <th scope="col">Job Description</th>
+            <th scope="col">Next Fire Time</th>
+            <th scope="col">Previous Fire Time</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var job in Model.Jobs)
+        {
+            <tr>
+                <td>@job.JobDetail.Key.Name</td>
+                <td>@job.JobDetail.Key.Group</td>
+                <td>@job.JobDetail.Description</td>
+                <td>@job.Trigger.GetNextFireTimeUtc()?.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</td>
+                <td>@job.Trigger.GetPreviousFireTimeUtc()?.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</td>
+            </tr>
+        }
+    </tbody>
+</table>
