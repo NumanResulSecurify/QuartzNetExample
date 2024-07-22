@@ -230,6 +230,90 @@ Job ve trigger zamanlayıcıya eklenir ve zamanlayıcı başlatılır.
 Uygulama 60 saniye boyunca çalışır ve ardından zamanlayıcıyı durdurur.
 Bu sayede, Quartz.NET kullanarak zamanlanmış görevler oluşturabilir ve yönetebilirsiniz.
 
+# Quartz ile sıralı job çalıştırma 
+Quartz.NET ile sıralı olarak çalışacak işleri tanımlamak için bir iş tamamlandıktan sonra diğer işin çalıştırılmasını sağlayabilirsiniz. Bu senaryoda, bir iş tamamlandığında başka bir işi tetiklemek için IJobListener kullanabilir veya daha basit bir yaklaşımla, bir işin bitişinde diğer işin planlanmasını sağlayabilirsiniz.
+# 1. Yöntem 
+```csharp
+public class Job1 : IJob
+{
+    public async Task Execute(IJobExecutionContext context)
+    {
+        Console.WriteLine("Job1 çalıştırılıyor...");
+        await Task.Delay(1000); // İşin gerçekleştirilme süresi (örnek olarak 1 saniye)
+        Console.WriteLine("Job1 tamamlandı.");
+
+        // Job2'yi tetikle
+        IScheduler scheduler = context.Scheduler;
+        IJobDetail job2 = JobBuilder.Create<Job2>()
+                                    .WithIdentity("job2", "group1")
+                                    .Build();
+
+        ITrigger trigger2 = TriggerBuilder.Create()
+                                          .WithIdentity("trigger2", "group1")
+                                          .StartNow()
+                                          .Build();
+
+        await scheduler.ScheduleJob(job2, trigger2);
+    }
+}
+
+public class Job2 : IJob
+{
+    public async Task Execute(IJobExecutionContext context)
+    {
+        Console.WriteLine("Job2 çalıştırılıyor...");
+        await Task.Delay(1000); // İşin gerçekleştirilme süresi (örnek olarak 1 saniye)
+        Console.WriteLine("Job2 tamamlandı.");
+    }
+}
+```
+# 2. Yöntem
+
+Quartz.NET ile işleri sıralı bir şekilde çalıştırmanın başka yöntemleri de vardır. Bunlardan biri, Job Chaining (İş Zincirleme) olarak bilinir. Quartz.NET ile işleri zincirlemek için bir JobListener kullanarak bir iş tamamlandığında başka bir işi çalıştırmak mümkündür.
+
+JobListener Kullanarak İş Zincirleme
+JobListener'ı Tanımlayın: İş tamamlandığında tetiklenecek bir iş dinleyicisi oluşturun.
+İşleri ve Dinleyiciyi Scheduler'a Ekleyin: İşleri ve dinleyiciyi Scheduler'a ekleyin ve ayarlayın.
+
+Bir iş tamamlandığında başka bir işi çalıştırmak için bir JobListener oluşturun.
+```csharp
+using Quartz;
+using Quartz.Listener;
+using System.Threading.Tasks;
+
+public class JobChainingListener : JobListenerSupport
+{
+    private readonly IScheduler _scheduler;
+
+    public JobChainingListener(IScheduler scheduler)
+    {
+        _scheduler = scheduler;
+    }
+
+    public override string Name => "JobChainingListener";
+
+    public override async Task JobWasExecuted(IJobExecutionContext context, JobExecutionException jobException)
+    {
+        JobKey jobKey = context.JobDetail.Key;
+        
+        if (jobKey.Name == "job1" && jobKey.Group == "group1")
+        {
+            // Job1 tamamlandığında Job2'yi tetikle
+            IJobDetail job2 = JobBuilder.Create<Job2>()
+                                        .WithIdentity("job2", "group1")
+                                        .Build();
+
+            ITrigger trigger2 = TriggerBuilder.Create()
+                                              .WithIdentity("trigger2", "group1")
+                                              .StartNow()
+                                              .Build();
+
+            await _scheduler.ScheduleJob(job2, trigger2);
+        }
+    }
+}
+```
+
 #Cron ifadeleri (Cron Expressions),
  belirli zaman aralıklarında görevlerin çalıştırılması için yaygın olarak kullanılan bir zamanlama mekanizmasıdır. Bu ifadeler, bir dizi zaman birimini kullanarak belirli zamanlarda, günlerde veya tarihlerde görevlerin çalıştırılmasını sağlar. Cron ifadeleri genellikle Unix tabanlı sistemlerde kullanılır, ancak Quartz.NET gibi kütüphanelerle .NET ortamında da kullanılabilir.
 
