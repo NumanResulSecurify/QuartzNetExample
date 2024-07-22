@@ -313,8 +313,77 @@ public class JobChainingListener : JobListenerSupport
     }
 }
 ```
+# Parametreli Job Çağırımı
 
-#Cron ifadeleri (Cron Expressions),
+Quartz.NET ile parametreli bir iş çalıştırmak mümkündür. Parametreli bir iş çalıştırmak için, işin IJobExecutionContext içindeki JobDataMap kullanılarak parametreleri almasını sağlayabilirsiniz. JobDataMap, işlerinize verileri geçirmenin bir yoludur ve bu harita içinde anahtar-değer çiftleri şeklinde veri saklayabilirsiniz.
+
+1. İş Sınıfını Tanımlayın
+Öncelikle, parametreleri alacak bir iş sınıfı oluşturun. Bu sınıf, IJob arayüzünü uygulamalıdır:
+```csharp
+using Quartz;
+using System;
+using System.Threading.Tasks;
+
+public class ParametrizedJob : IJob
+{
+    public Task Execute(IJobExecutionContext context)
+    {
+        // JobDataMap'ten parametreleri al
+        JobDataMap dataMap = context.JobDetail.JobDataMap;
+        string param1 = dataMap.GetString("param1");
+        int param2 = dataMap.GetInt("param2");
+
+        Console.WriteLine($"ParametrizedJob çalıştırılıyor... Param1: {param1}, Param2: {param2}");
+        return Task.CompletedTask;
+    }
+}
+```
+2. Quartz Scheduler'ı Yapılandırın
+Parametreli bir iş oluşturun ve gerekli parametreleri JobDataMap içine ekleyin:
+
+```csharp
+using Microsoft.AspNetCore.Builder;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Quartz;
+using Quartz.Impl;
+using System.Threading.Tasks;
+
+var builder = WebApplication.CreateBuilder(args);
+
+// Quartz.NET konfigürasyonunu ekleyin
+builder.Services.AddQuartz(q =>
+{
+    q.UseMicrosoftDependencyInjectionScopedJobFactory();
+
+    // ParametrizedJob için JobDataMap ile birlikte bir job tanımla
+    var jobKey = new JobKey("parametrizedJob", "group1");
+    q.AddJob<ParametrizedJob>(opts => opts
+        .WithIdentity(jobKey)
+        .UsingJobData("param1", "Value1")
+        .UsingJobData("param2", 42));
+
+    // Job için bir trigger oluştur
+    q.AddTrigger(opts => opts
+        .ForJob(jobKey)
+        .WithIdentity("trigger1", "group1")
+        .StartNow());
+});
+
+// Quartz.NET işlerini başlatma
+builder.Services.AddQuartzHostedService(q => q.WaitForJobsToComplete = true);
+
+var app = builder.Build();
+
+app.Run();
+```
+Açıklamalar
+ParametrizedJob Sınıfı: Bu sınıf IJob arayüzünü uygular ve Execute metodunda JobDataMap kullanarak parametreleri alır.
+Quartz Konfigürasyonu: builder.Services.AddQuartz metodu içinde, ParametrizedJob job'unu tanımlayın ve UsingJobData metodu ile parametreleri ekleyin. JobDataMap içinde parametreler anahtar-değer çiftleri olarak saklanır.
+Bu şekilde, Quartz.NET ile parametreli işler oluşturabilir ve çalıştırabilirsiniz. JobDataMap, işlerinize veri geçirmenin esnek bir yolunu sağlar ve işlerinizin farklı durumlarda farklı davranışlar sergilemesini mümkün kılar.
+
+
+# Cron ifadeleri (Cron Expressions),
  belirli zaman aralıklarında görevlerin çalıştırılması için yaygın olarak kullanılan bir zamanlama mekanizmasıdır. Bu ifadeler, bir dizi zaman birimini kullanarak belirli zamanlarda, günlerde veya tarihlerde görevlerin çalıştırılmasını sağlar. Cron ifadeleri genellikle Unix tabanlı sistemlerde kullanılır, ancak Quartz.NET gibi kütüphanelerle .NET ortamında da kullanılabilir.
 
 Cron İfadesi Sözdizimi
@@ -332,22 +401,22 @@ Cron ifadesi genellikle 6 veya 7 alan içerir ve her alan bir zaman birimini tem
 +--------------- Yıl (opsiyonel) (1970-2099)
 ```
 Alanların Anlamları
-Saniye: 0-59 arasında bir değer veya özel karakterler.
-Dakika: 0-59 arasında bir değer veya özel karakterler.
-Saat: 0-23 arasında bir değer veya özel karakterler.
-Ayın günü: 1-31 arasında bir değer veya özel karakterler.
-Ay: 1-12 arasında bir değer veya JAN-DEC şeklinde kısaltmalar.
-Haftanın günü: 0-7 arasında bir değer (0 veya 7 = Pazar) veya MON-SUN şeklinde kısaltmalar.
-Yıl (opsiyonel): 1970-2099 arasında bir değer veya özel karakterler.
+1. Saniye: 0-59 arasında bir değer veya özel karakterler.
+2. Dakika: 0-59 arasında bir değer veya özel karakterler.
+3. Saat: 0-23 arasında bir değer veya özel karakterler.
+4. Ayın günü: 1-31 arasında bir değer veya özel karakterler.
+5. Ay: 1-12 arasında bir değer veya JAN-DEC şeklinde kısaltmalar.
+6. Haftanın günü: 0-7 arasında bir değer (0 veya 7 = Pazar) veya MON-SUN şeklinde kısaltmalar.
+7. Yıl (opsiyonel): 1970-2099 arasında bir değer veya özel karakterler.
 Özel Karakterler
-*: Herhangi bir değer.
-,: Belirtilen değerlerin listesi (örnek: 1,2,3).
--: Belirtilen aralık (örnek: 1-5).
-/: Adım değeri (örnek: */5 her 5 dakikada bir).
-?: Belirli bir değer yok (ayın günü ve haftanın günü alanlarında kullanılır).
-L: Son değer (ayın son günü için L, haftanın son günü için 7L).
-W: En yakın hafta içi günü (ayın belirli bir gününe en yakın hafta içi günü).
-#: Ayın belirli bir haftasında belirli bir gün (örnek: 2#1 ayın ilk Pazartesi günü).
+1. *: Herhangi bir değer.
+2. ,: Belirtilen değerlerin listesi (örnek: 1,2,3).
+3. -: Belirtilen aralık (örnek: 1-5).
+4. /: Adım değeri (örnek: */5 her 5 dakikada bir).
+5. ?: Belirli bir değer yok (ayın günü ve haftanın günü alanlarında kullanılır).
+6. L: Son değer (ayın son günü için L, haftanın son günü için 7L).
+7. W: En yakın hafta içi günü (ayın belirli bir gününe en yakın hafta içi günü).
+8. #: Ayın belirli bir haftasında belirli bir gün (örnek: 2#1 ayın ilk Pazartesi günü).
 Örnek Cron İfadeleri
 Her dakika:
 
